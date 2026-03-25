@@ -23,7 +23,7 @@ enum ProcessRunnerError: LocalizedError {
 }
 
 struct ProcessRunner {
-    func run(executableURL: URL, arguments: [String]) async throws -> ProcessResult {
+    func run(executableURL: URL, arguments: [String], currentDirectoryURL: URL? = nil) async throws -> ProcessResult {
         guard FileManager.default.fileExists(atPath: executableURL.path) else {
             throw ProcessRunnerError.missingExecutable(executableURL)
         }
@@ -35,6 +35,7 @@ struct ProcessRunner {
 
             process.executableURL = executableURL
             process.arguments = arguments
+            process.currentDirectoryURL = currentDirectoryURL
             process.standardOutput = stdoutPipe
             process.standardError = stderrPipe
 

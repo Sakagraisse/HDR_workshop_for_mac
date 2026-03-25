@@ -6,7 +6,11 @@ struct AppleGainMapRunner {
 
     func run(request: AppleConversionRequest, toolsDirectory: URL) async throws -> ConversionJob {
         let command = try commandBuilder.build(request: request, toolsDirectory: toolsDirectory)
-        let result = try await processRunner.run(executableURL: command.executableURL, arguments: command.arguments)
+        let result = try await processRunner.run(
+            executableURL: command.executableURL,
+            arguments: command.arguments,
+            currentDirectoryURL: toolsDirectory
+        )
         let outputURL = expectedOutputURL(for: request)
 
         return ConversionJob(
@@ -23,8 +27,20 @@ struct AppleGainMapRunner {
             return nil
         }
 
-        let extensionName = request.outputFormat == .heic ? "heic" : "jpg"
-        let fileName = "\(hdrSource.deletingPathExtension().lastPathComponent)-apple.\(extensionName)"
+        let extensionName = request.outputFormat == .jpeg && request.exportMode.supportsJPEGContainer ? "jpg" : "heic"
+        let suffix = request.outputNameSuffix.isEmpty ? "apple" : request.outputNameSuffix
+        let fileName = "\(hdrSource.deletingPathExtension().lastPathComponent)-\(suffix).\(extensionName)"
         return outputFolder.appending(path: fileName)
+    }
+}
+
+private extension AppleExportMode {
+    var supportsJPEGContainer: Bool {
+        switch self {
+        case .appleGainMap, .isoGainMap, .sdrToneMapped:
+            true
+        case .hdrPQ, .hdrHLG:
+            false
+        }
     }
 }

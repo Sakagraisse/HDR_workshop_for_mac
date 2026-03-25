@@ -14,7 +14,10 @@ let package = Package(
     targets: [
         .target(
             name: "HDRUtilityKit",
-            path: "Sources/HDRUtility"
+            path: "Sources/HDRUtility",
+            resources: [
+                .copy("../../Resources/EmbeddedTools")
+            ]
         ),
         .executableTarget(
             name: "HDRUtility",

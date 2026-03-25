@@ -6,14 +6,28 @@ struct AppleConversionRequest: Hashable {
     var outputFolder: URL?
     var quality: Double = 0.92
     var toneMapRatio: Double = 1.8
+    var exportMode: AppleExportMode = .appleGainMap
     var outputFormat: AppleOutputFormat = .heic
     var colorSpace: ColorSpaceKind = .displayP3
     var bitDepth: Int = 10
+    var outputNameSuffix = "apple"
+    var appleGainMapScale: Double = 1.0
+    var useMonochromeGainMap = false
 }
 
 enum AppleOutputFormat: String, CaseIterable, Identifiable {
     case heic
     case jpeg
+
+    var id: String { rawValue }
+}
+
+enum AppleExportMode: String, CaseIterable, Identifiable {
+    case appleGainMap
+    case isoGainMap
+    case sdrToneMapped
+    case hdrPQ
+    case hdrHLG
 
     var id: String { rawValue }
 }
@@ -64,48 +78,72 @@ struct ConversionService: ConversionServicing {
 struct EmbeddedToolsLocator {
     func resolve() throws -> URL {
         let fileManager = FileManager.default
-        var candidates: [URL] = []
+        let bundleToolsURL = try bundledToolsDirectory()
+        let stagedDirectory = fileManager.temporaryDirectory
+            .appending(path: "HDRUtility")
+            .appending(path: "EmbeddedTools")
 
-        if let resourceURL = Bundle.main.resourceURL {
-            candidates.append(resourceURL.appending(path: "EmbeddedTools"))
-            candidates.append(resourceURL.appending(path: "../Resources/EmbeddedTools").standardizedFileURL)
-        }
+        try stageBundledTools(from: bundleToolsURL, to: stagedDirectory, fileManager: fileManager)
+        return stagedDirectory
+    }
 
-        let currentDirectory = URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
-        candidates.append(contentsOf: searchPathCandidates(from: currentDirectory))
+    private func bundledToolsDirectory() throws -> URL {
+        let candidates = [
+            Bundle.module.resourceURL?.appending(path: "EmbeddedTools"),
+            Bundle.main.resourceURL?.appending(path: "EmbeddedTools"),
+            Bundle.main.resourceURL?.appending(path: "../Resources/EmbeddedTools").standardizedFileURL
+        ].compactMap { $0 }
 
-        if let bundleURL = Bundle.main.bundleURL as URL? {
-            candidates.append(contentsOf: searchPathCandidates(from: bundleURL))
-        }
-
-        let sourceRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        candidates.append(sourceRoot.appending(path: "Resources/EmbeddedTools"))
-
-        for candidate in candidates {
-            if FileManager.default.fileExists(atPath: candidate.path(percentEncoded: false)) {
-                return candidate
-            }
+        for candidate in candidates where FileManager.default.fileExists(atPath: candidate.path(percentEncoded: false)) {
+            return candidate
         }
 
         throw EmbeddedToolsError.missingDirectory
     }
 
-    private func searchPathCandidates(from startingURL: URL) -> [URL] {
-        var candidates: [URL] = []
-        var currentURL = startingURL.standardizedFileURL
+    private func stageBundledTools(from sourceDirectory: URL, to destinationDirectory: URL, fileManager: FileManager) throws {
+        try fileManager.createDirectory(at: destinationDirectory, withIntermediateDirectories: true)
 
-        for _ in 0..<6 {
-            candidates.append(currentURL.appending(path: "Resources/EmbeddedTools"))
-            candidates.append(currentURL.appending(path: "HDRutility/Resources/EmbeddedTools"))
-            currentURL.deleteLastPathComponent()
+        let resourceURLs = try fileManager.contentsOfDirectory(
+            at: sourceDirectory,
+            includingPropertiesForKeys: nil
+        )
+
+        for resourceURL in resourceURLs {
+            var destinationURL = destinationDirectory.appending(path: resourceURL.lastPathComponent)
+
+            if fileManager.fileExists(atPath: destinationURL.path(percentEncoded: false)) {
+                try fileManager.removeItem(at: destinationURL)
+            }
+
+            try fileManager.copyItem(at: resourceURL, to: destinationURL)
+
+            var values = URLResourceValues()
+            values.isExcludedFromBackup = true
+            try? destinationURL.setResourceValues(values)
+
+            if !resourceURL.hasDirectoryPath {
+                try ensureExecutableBitIfNeeded(for: destinationURL, fileManager: fileManager)
+            }
+        }
+    }
+
+    private func ensureExecutableBitIfNeeded(for fileURL: URL, fileManager: FileManager) throws {
+        let attributes = try fileManager.attributesOfItem(atPath: fileURL.path(percentEncoded: false))
+        guard let permissions = attributes[.posixPermissions] as? NSNumber else {
+            return
         }
 
-        return candidates
+        let mode = permissions.uint16Value
+        let executableMask: UInt16 = 0o111
+        guard mode & executableMask == 0 else {
+            return
+        }
+
+        try fileManager.setAttributes(
+            [.posixPermissions: NSNumber(value: Int(mode | 0o755))],
+            ofItemAtPath: fileURL.path(percentEncoded: false)
+        )
     }
 }
 
