@@ -1,0 +1,12 @@
+/Users/fdaburon/Documents/Xcode/HDRutility/Vendor/Builds/libultrahdr/cmake/CMakeFiles/image_io.dir
+/Users/fdaburon/Documents/Xcode/HDRutility/Vendor/Builds/libultrahdr/cmake/CMakeFiles/core.dir
+/Users/fdaburon/Documents/Xcode/HDRutility/Vendor/Builds/libultrahdr/cmake/CMakeFiles/ultrahdr_app.dir
+/Users/fdaburon/Documents/Xcode/HDRutility/Vendor/Builds/libultrahdr/cmake/CMakeFiles/uhdr.dir
+/Users/fdaburon/Documents/Xcode/HDRutility/Vendor/Builds/libultrahdr/cmake/CMakeFiles/uhdr-static.dir
+/Users/fdaburon/Documents/Xcode/HDRutility/Vendor/Builds/libultrahdr/cmake/CMakeFiles/uninstall.dir
+/Users/fdaburon/Documents/Xcode/HDRutility/Vendor/Builds/libultrahdr/cmake/CMakeFiles/edit_cache.dir
+/Users/fdaburon/Documents/Xcode/HDRutility/Vendor/Builds/libultrahdr/cmake/CMakeFiles/rebuild_cache.dir
+/Users/fdaburon/Documents/Xcode/HDRutility/Vendor/Builds/libultrahdr/cmake/CMakeFiles/list_install_components.dir
+/Users/fdaburon/Documents/Xcode/HDRutility/Vendor/Builds/libultrahdr/cmake/CMakeFiles/install.dir
+/Users/fdaburon/Documents/Xcode/HDRutility/Vendor/Builds/libultrahdr/cmake/CMakeFiles/install/local.dir
+/Users/fdaburon/Documents/Xcode/HDRutility/Vendor/Builds/libultrahdr/cmake/CMakeFiles/install/strip.dir

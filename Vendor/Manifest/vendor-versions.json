@@ -1,0 +1,12 @@
+{
+  "toGainMapHDR": {
+    "repo": "https://github.com/chemharuka/toGainMapHDR.git",
+    "version": "v3.1",
+    "commit": ""
+  },
+  "libultrahdr": {
+    "repo": "https://github.com/google/libultrahdr.git",
+    "version": "v1.4.0",
+    "commit": ""
+  }
+}
