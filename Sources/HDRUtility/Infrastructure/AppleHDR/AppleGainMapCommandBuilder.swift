@@ -31,10 +31,27 @@ struct AppleGainMapCommandBuilder {
             arguments.append(contentsOf: ["-b", sdrBase.path(percentEncoded: false)])
         }
 
-        switch request.outputFormat {
-        case .heic:
+        if request.outputNameSuffix.isEmpty == false {
+            arguments.append(contentsOf: ["-t", request.outputNameSuffix])
+        }
+
+        switch request.exportMode {
+        case .appleGainMap:
             arguments.append("-g")
-        case .jpeg:
+            arguments.append(contentsOf: ["-H", String(request.appleGainMapScale)])
+        case .isoGainMap:
+            if request.useMonochromeGainMap {
+                arguments.append("-m")
+            }
+        case .sdrToneMapped:
+            arguments.append("-s")
+        case .hdrPQ:
+            arguments.append("-p")
+        case .hdrHLG:
+            arguments.append("-h")
+        }
+
+        if request.outputFormat == .jpeg, request.exportMode.supportsJPEGContainer {
             arguments.append("-j")
         }
 
@@ -54,6 +71,17 @@ struct AppleGainMapCommandBuilder {
             return "BT2020"
         case .sRGB, .extendedLinearSRGB, .unknown:
             return "sRGB"
+        }
+    }
+}
+
+private extension AppleExportMode {
+    var supportsJPEGContainer: Bool {
+        switch self {
+        case .appleGainMap, .isoGainMap, .sdrToneMapped:
+            true
+        case .hdrPQ, .hdrHLG:
+            false
         }
     }
 }

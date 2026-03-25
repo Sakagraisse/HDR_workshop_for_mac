@@ -1,8 +1,22 @@
 {
   "toGainMapHDR": {
     "repo": "https://github.com/chemharuka/toGainMapHDR.git",
-    "version": "v3.1",
-    "commit": ""
+    "version": "3.1",
+    "commit": "",
+    "releaseURL": "https://github.com/chemharuka/toGainMapHDR/releases/tag/3.1",
+    "license": "MIT",
+    "assets": {
+      "toGainMapHDR": {
+        "url": "https://github.com/chemharuka/toGainMapHDR/releases/download/3.1/toGainMapHDR",
+        "sha256": "9ce12fea0f1cf9f5cd8eb39d5f31d4cca0b019b422b7d8003478dd349e9d876f",
+        "size": 231472
+      },
+      "GainMapKernel.ci.metallib": {
+        "url": "https://github.com/chemharuka/toGainMapHDR/releases/download/3.1/GainMapKernel.ci.metallib",
+        "sha256": "8f588244d2702364e6d49f80781c8ab0d6fc10f25909b933efcbd4683acf51fb",
+        "size": 3942
+      }
+    }
   },
   "libultrahdr": {
     "repo": "https://github.com/google/libultrahdr.git",
