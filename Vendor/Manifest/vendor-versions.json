@@ -21,6 +21,13 @@
   "libultrahdr": {
     "repo": "https://github.com/google/libultrahdr.git",
     "version": "v1.4.0",
-    "commit": ""
+    "commit": "",
+    "license": "Apache-2.0",
+    "buildSystem": "cmake+ninja",
+    "artifacts": {},
+    "noticeFiles": [
+      "Vendor/Builds/libultrahdr/THIRD_PARTY_NOTICES/libultrahdr-LICENSE",
+      "Vendor/Builds/libultrahdr/THIRD_PARTY_NOTICES/libultrahdr-NOTICE"
+    ]
   }
 }
