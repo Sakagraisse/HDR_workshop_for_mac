@@ -1,0 +1,13 @@
+{
+  "protocolVersion": 1,
+  "operation": "encodePair",
+  "hdrInput": "TestAssets/HDRTestPatterns/master-linear-srgb-hdr-center-4x.tiff",
+  "sdrInput": "TestAssets/HDRTestPatterns/base-white-srgb-rgb.jpg",
+  "output": "TestAssets/HDRTestPatterns/ultrahdr-hdr-center-plus2stops.jpg",
+  "baseQuality": 100,
+  "gainMapQuality": 100,
+  "gainMapScale": 1,
+  "multiChannel": false,
+  "preset": "bestQuality",
+  "colorGamut": "sRGB"
+}

@@ -19,6 +19,8 @@ struct AnalyzeView: View {
                     ErrorBanner(message: errorMessage)
                 }
 
+                FormatIntelligenceStrip(model: model)
+
                 content
             }
             .padding(24)
@@ -37,7 +39,7 @@ struct AnalyzeView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Analyze HDR Assets")
                     .font(.largeTitle.weight(.bold))
-                Text("Inspect container, HDR tagging, gain maps and compatibility before conversion.")
+                Text("Separate Apple legacy, ISO 21496-1 and Ultra HDR v1 — including RGB versus monochrome gain maps.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -97,7 +99,7 @@ struct AnalyzeView: View {
                     }
                 }
                 .pickerStyle(.menu)
-                .frame(width: 130)
+                .frame(width: 150)
                 .disabled(model.records.isEmpty)
             }
 
@@ -153,6 +155,8 @@ struct AnalyzeView: View {
             PreviewCard(record: record)
 
             VerdictSummaryCard(record: record)
+
+            GainMapCompatibilityCard(record: record)
 
             QuickFactsCard(record: record)
 
@@ -240,6 +244,119 @@ private struct ErrorBanner: View {
     }
 }
 
+private struct FormatIntelligenceStrip: View {
+    let model: AnalyzeViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Gain-map format intelligence", systemImage: "sparkles.rectangle.stack")
+                    .font(.headline)
+                Spacer()
+                if model.records.isEmpty == false {
+                    Text("\(model.fileCount) file\(model.fileCount == 1 ? "" : "s") analyzed")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4),
+                spacing: 10
+            ) {
+                if model.records.isEmpty {
+                    FormatInsightTile(
+                        icon: "arrow.triangle.branch",
+                        title: "Best JPEG bridge",
+                        value: "ISO + Ultra HDR",
+                        detail: "One SDR base, one gain map, both metadata families.",
+                        tint: .mint
+                    )
+                    FormatInsightTile(
+                        icon: "circle.hexagongrid.fill",
+                        title: "RGB gain map",
+                        value: "3 channels",
+                        detail: "Supported by ISO/Ultra HDR and Core Image exports.",
+                        tint: .blue
+                    )
+                    FormatInsightTile(
+                        icon: "apple.logo",
+                        title: "Apple native",
+                        value: "JPEG or HEIF",
+                        detail: "Legacy auxiliary and ISO are reported separately.",
+                        tint: .indigo
+                    )
+                    FormatInsightTile(
+                        icon: "iphone.gen3.radiowaves.left.and.right",
+                        title: "Android",
+                        value: "JPEG + HEIC",
+                        detail: "JPEG is mature; HEIC Ultra HDR starts with Android 16.",
+                        tint: .orange
+                    )
+                } else {
+                    FormatInsightTile(
+                        icon: "checkmark.seal.fill",
+                        title: "Cross-platform",
+                        value: "\(model.crossPlatformCount)",
+                        detail: "Verified by Apple and the Ultra HDR decoder.",
+                        tint: .green
+                    )
+                    FormatInsightTile(
+                        icon: "circle.hexagongrid.fill",
+                        title: "RGB gain maps",
+                        value: "\(model.rgbGainMapCount)",
+                        detail: "Three independent color-ratio channels.",
+                        tint: .blue
+                    )
+                    FormatInsightTile(
+                        icon: "doc.badge.gearshape",
+                        title: "ISO / Ultra HDR",
+                        value: "\(model.isoCount) / \(model.ultraHDRCount)",
+                        detail: "Signals are counted independently, including hybrids.",
+                        tint: .mint
+                    )
+                    FormatInsightTile(
+                        icon: "apple.logo",
+                        title: "Apple legacy",
+                        value: "\(model.appleLegacyCount)",
+                        detail: "Legacy auxiliary gain maps, not generic ISO.",
+                        tint: .indigo
+                    )
+                }
+            }
+        }
+        .padding(16)
+        .cardStyle()
+    }
+}
+
+private struct FormatInsightTile: View {
+    let icon: String
+    let title: String
+    let value: String
+    let detail: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Image(systemName: icon)
+                .foregroundStyle(tint)
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.title3.weight(.bold))
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
+        .padding(13)
+        .background(tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
 
 private struct RecordsDropHint: View {
     let isEmpty: Bool
@@ -305,14 +422,21 @@ private struct AnalyzeRecordRow: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
 
-                    HStack(spacing: 6) {
-                        TagBadge(title: record.hdrKind.displayLabel, tint: .blue)
-                        TagBadge(title: record.compatibility.verdict.displayLabel, tint: record.compatibility.verdict.tintColor)
-                        if record.diagnostics.contains(where: { $0.severity == .warning }) {
-                            TagBadge(title: "Warning", tint: .orange)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 6) {
+                            TagBadge(title: record.gainMap?.kind.displayLabel ?? record.hdrKind.displayLabel, tint: .blue)
+                            if let channelModel = record.gainMap?.channelModel, channelModel != .unknown {
+                                TagBadge(title: channelModel.displayLabel, tint: channelModel == .rgb ? .indigo : .gray)
+                            }
                         }
-                        if record.diagnostics.contains(where: { $0.severity == .error }) {
-                            TagBadge(title: "Error", tint: .red)
+                        HStack(spacing: 6) {
+                            TagBadge(title: record.compatibility.verdict.displayLabel, tint: record.compatibility.verdict.tintColor)
+                            if record.diagnostics.contains(where: { $0.severity == .warning }) {
+                                TagBadge(title: "Warning", tint: .orange)
+                            }
+                            if record.diagnostics.contains(where: { $0.severity == .error }) {
+                                TagBadge(title: "Error", tint: .red)
+                            }
                         }
                     }
                 }
@@ -370,6 +494,7 @@ private struct PreviewCard: View {
                     TagBadge(title: record.hdrKind.displayLabel, tint: .indigo)
                     if let gainMap = record.gainMap {
                         TagBadge(title: gainMap.kind.displayLabel, tint: .mint)
+                        TagBadge(title: gainMap.channelModel.displayLabel, tint: gainMap.channelModel == .rgb ? .indigo : .gray)
                     }
 
                     Button("Open") {
@@ -468,6 +593,106 @@ private struct VerdictSummaryCard: View {
     }
 }
 
+private struct GainMapCompatibilityCard: View {
+    let record: HDRFileRecord
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Gain-map compatibility matrix")
+                        .font(.headline)
+                    Text("Declared markers and successful decoder recognition are deliberately shown as different states.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if record.compatibility.gainMapFormats.crossPlatformVerified {
+                    TagBadge(title: "Cross-platform verified", tint: .green)
+                }
+            }
+
+            if let gainMap = record.gainMap {
+                LazyVGrid(
+                    columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
+                    spacing: 10
+                ) {
+                    CompatibilityCell(
+                        title: "Apple legacy",
+                        detail: "Proprietary auxiliary type",
+                        status: record.compatibility.gainMapFormats.appleLegacy
+                    )
+                    CompatibilityCell(
+                        title: "ISO 21496-1",
+                        detail: "Standard gain-map metadata",
+                        status: record.compatibility.gainMapFormats.iso21496
+                    )
+                    CompatibilityCell(
+                        title: "Ultra HDR v1",
+                        detail: "hdrgm XMP + GContainer",
+                        status: record.compatibility.gainMapFormats.ultraHDRV1
+                    )
+                    CompatibilityCell(
+                        title: "Apple decode",
+                        detail: "ImageIO / Core Image",
+                        status: record.compatibility.gainMapFormats.appleDecode
+                    )
+                    CompatibilityCell(
+                        title: "Android decode",
+                        detail: "libultrahdr probe",
+                        status: record.compatibility.gainMapFormats.androidDecode
+                    )
+                    CompatibilityCell(
+                        title: "Gain-map channels",
+                        detail: gainMap.channelModel == .rgb
+                            ? "Independent R, G and B ratios"
+                            : "Brightness ratio shared by RGB",
+                        status: gainMap.channelModel == .unknown ? .declared : .verified,
+                        customValue: gainMap.channelModel.displayLabel
+                    )
+                }
+            } else {
+                ContentUnavailableView(
+                    "No Gain Map",
+                    systemImage: "rectangle.slash",
+                    description: Text("This is a direct HDR/SDR asset, so gain-map format compatibility does not apply.")
+                )
+                .frame(maxWidth: .infinity, minHeight: 120)
+            }
+        }
+        .padding(18)
+        .cardStyle()
+    }
+}
+
+private struct CompatibilityCell: View {
+    let title: String
+    let detail: String
+    let status: CompatibilityStatus
+    var customValue: String? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack {
+                Image(systemName: status.symbolName)
+                    .foregroundStyle(status.tintColor)
+                Spacer()
+                Text(customValue ?? status.displayLabel)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(status.tintColor)
+            }
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, minHeight: 76, alignment: .topLeading)
+        .padding(12)
+        .background(status.tintColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
 private struct QuickFactsCard: View {
     let record: HDRFileRecord
 
@@ -487,6 +712,8 @@ private struct QuickFactsCard: View {
                 FactCell(title: "Transfer", value: record.transferFunction.displayLabel)
                 FactCell(title: "HDR Kind", value: record.hdrKind.displayLabel)
                 FactCell(title: "Gain Map", value: record.gainMap?.kind.displayLabel ?? "None")
+                FactCell(title: "Channels", value: record.gainMap?.channelModel.displayLabel ?? "—")
+                FactCell(title: "Layout", value: record.gainMap?.layout.displayLabel ?? "—")
                 FactCell(title: "SDR Fallback", value: record.compatibility.sdrFallbackOK ? "OK" : "Unknown")
             }
         }
@@ -697,6 +924,8 @@ private extension HDRFileRecord {
 
     var recommendation: String {
         switch compatibility.verdict {
+        case .crossPlatformGainMap:
+            "This gain map was accepted by both Apple and Ultra HDR decoders."
         case .readyForApple:
             "Ready for the Apple pipeline."
         case .readyForInstagram:
@@ -727,6 +956,8 @@ private extension ImageContainer {
 private extension CompatibilityVerdict {
     var displayLabel: String {
         switch self {
+        case .crossPlatformGainMap:
+            "Cross-platform"
         case .readyForApple:
             "Ready for Apple"
         case .readyForInstagram:
@@ -744,7 +975,7 @@ private extension CompatibilityVerdict {
 
     var statusLabel: String {
         switch self {
-        case .readyForApple, .readyForInstagram:
+        case .crossPlatformGainMap, .readyForApple, .readyForInstagram:
             "Ready"
         case .hdrLimitedCompatibility:
             "Limited"
@@ -757,6 +988,8 @@ private extension CompatibilityVerdict {
 
     var tintColor: Color {
         switch self {
+        case .crossPlatformGainMap:
+            .green
         case .readyForApple:
             .green
         case .readyForInstagram:
@@ -801,8 +1034,77 @@ private extension GainMapKind {
             "ISO 21496"
         case .ultraHDR:
             "Ultra HDR"
+        case .hybrid:
+            "ISO + Ultra HDR"
         case .unknown:
             "Unknown Gain Map"
+        }
+    }
+}
+
+private extension GainMapChannelModel {
+    var displayLabel: String {
+        switch self {
+        case .monochrome:
+            "Monochrome"
+        case .rgb:
+            "RGB"
+        case .unknown:
+            "Unknown"
+        }
+    }
+}
+
+private extension GainMapLayout {
+    var displayLabel: String {
+        switch self {
+        case .jpegMPF:
+            "JPEG / MPF"
+        case .heifAuxiliary:
+            "HEIF auxiliary"
+        case .unknown:
+            "Unknown"
+        }
+    }
+}
+
+private extension CompatibilityStatus {
+    var displayLabel: String {
+        switch self {
+        case .verified:
+            "Verified"
+        case .declared:
+            "Declared"
+        case .notDetected:
+            "Not detected"
+        case .notApplicable:
+            "N/A"
+        }
+    }
+
+    var tintColor: Color {
+        switch self {
+        case .verified:
+            .green
+        case .declared:
+            .blue
+        case .notDetected:
+            .orange
+        case .notApplicable:
+            .gray
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .verified:
+            "checkmark.seal.fill"
+        case .declared:
+            "doc.badge.ellipsis"
+        case .notDetected:
+            "questionmark.circle"
+        case .notApplicable:
+            "minus.circle"
         }
     }
 }

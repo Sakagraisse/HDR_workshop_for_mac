@@ -35,8 +35,7 @@ struct FileDropZone: View {
 
     private func loadURLs(from providers: [NSItemProvider]) -> Bool {
         let group = DispatchGroup()
-        let lock = NSLock()
-        var collected: [URL] = []
+        let collector = FileDropURLCollector()
 
         for provider in providers {
             guard provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) else {
@@ -49,18 +48,34 @@ struct FileDropZone: View {
 
                 if let data = item as? Data,
                    let url = URL(dataRepresentation: data, relativeTo: nil) {
-                    lock.lock()
-                    collected.append(url)
-                    lock.unlock()
+                    collector.append(url)
                 }
             }
         }
 
         group.notify(queue: .main) {
+            let collected = collector.snapshot()
             let urls = supportsMultiple ? collected : Array(collected.prefix(1))
             onReceiveURLs(urls)
         }
 
         return true
+    }
+}
+
+private final class FileDropURLCollector: @unchecked Sendable {
+    private let lock = NSLock()
+    private var urls: [URL] = []
+
+    func append(_ url: URL) {
+        lock.lock()
+        urls.append(url)
+        lock.unlock()
+    }
+
+    func snapshot() -> [URL] {
+        lock.lock()
+        defer { lock.unlock() }
+        return urls
     }
 }

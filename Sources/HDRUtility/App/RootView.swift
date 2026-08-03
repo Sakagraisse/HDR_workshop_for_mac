@@ -19,6 +19,12 @@ public struct RootView: View {
                     AnalyzeView()
                 case .appleConvert:
                     AppleConvertView()
+                case .ultraHDRConvert:
+                    UltraHDRConvertView()
+                case .fullApple:
+                    FullAppleConvertView()
+                case .proRAWBatch:
+                    ProRAWBatchView()
                 case .instagramConvert:
                     InstagramConvertView()
                 }
@@ -45,6 +51,9 @@ private struct BuildBadge: View {
 enum AppSection: String, CaseIterable, Identifiable {
     case analyze
     case appleConvert
+    case ultraHDRConvert
+    case fullApple
+    case proRAWBatch
     case instagramConvert
 
     var id: String { rawValue }
@@ -54,9 +63,15 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .analyze:
             "Analyze"
         case .appleConvert:
-            "Apple Convert"
+            "Apple HDR"
+        case .ultraHDRConvert:
+            "Ultra HDR Android"
+        case .fullApple:
+            "ISOHDR"
+        case .proRAWBatch:
+            "ProRAW → HEIC (Batch)"
         case .instagramConvert:
-            "Instagram Convert"
+            "Publication Instagram"
         }
     }
 
@@ -65,7 +80,13 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .analyze:
             "waveform.path.ecg.rectangle"
         case .appleConvert:
-            "apple.terminal"
+            "apple.logo"
+        case .ultraHDRConvert:
+            "iphone.gen3.radiowaves.left.and.right"
+        case .fullApple:
+            "rectangle.stack.badge.plus"
+        case .proRAWBatch:
+            "camera.badge.ellipsis"
         case .instagramConvert:
             "camera.aperture"
         }

@@ -1,0 +1,6 @@
+.build/
+Vendor/Builds/libultrahdr/bridge/
+Vendor/Builds/libultrahdr/ultrahdr_bridge
+.DS_Store
+xcuserdata/
+*.xcuserstate

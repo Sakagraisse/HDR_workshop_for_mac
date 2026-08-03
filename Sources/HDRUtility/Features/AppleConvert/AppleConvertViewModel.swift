@@ -137,7 +137,9 @@ final class AppleConvertViewModel {
         for sourceURL in sourceURLs {
             var itemRequest = request
             itemRequest.hdrSource = sourceURL
-            itemRequest.sdrBase = nil
+            if sourceURLs.count > 1 {
+                itemRequest.sdrBase = nil
+            }
 
             let job = await service.convertApple(request: itemRequest)
             lastOutputURL = job.outputURL ?? lastOutputURL

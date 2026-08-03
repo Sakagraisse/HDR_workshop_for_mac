@@ -21,6 +21,13 @@
   "libultrahdr": {
     "repo": "https://github.com/google/libultrahdr.git",
     "version": "v1.4.0",
-    "commit": ""
+    "commit": "d52a0d13814ca399fc8a07e23de1d2c63f0e8404",
+    "license": "MIT OR Apache-2.0",
+    "bridge": {
+      "protocolVersion": 1,
+      "architecture": "arm64",
+      "sha256": "42702e8fb0cf57dd40155e7b1c371450c8b6f6dae072fdfa937fac7c1fa847d2",
+      "size": 999392
+    }
   }
 }

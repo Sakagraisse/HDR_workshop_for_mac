@@ -1,0 +1,7 @@
+[submodule "Vendor/Sources/libultrahdr"]
+	path = Vendor/Sources/libultrahdr
+	url = https://github.com/google/libultrahdr.git
+
+[submodule "Vendor/Sources/toGainMapHDR"]
+	path = Vendor/Sources/toGainMapHDR
+	url = https://github.com/chemharuka/toGainMapHDR.git

@@ -6,6 +6,7 @@ struct AppleConvertView: View {
     @Environment(AppState.self) private var appState
     @State private var model = AppleConvertViewModel()
     @State private var isListDropTargeted = false
+    @State private var engineStatus: EngineStatus?
 
     var body: some View {
         ScrollView {
@@ -32,6 +33,9 @@ struct AppleConvertView: View {
             .padding(24)
         }
         .navigationTitle("Apple Convert")
+        .task {
+            engineStatus = await ConversionService().inspectEngine(.toGainMapHDR)
+        }
     }
 
     private var header: some View {
@@ -47,6 +51,7 @@ struct AppleConvertView: View {
             Spacer()
 
             HStack(spacing: 10) {
+                EngineStatusBadge(status: engineStatus, fallbackName: "toGainMapHDR")
                 Button("Choose Files or Folder", action: chooseSources)
                     .buttonStyle(.borderedProminent)
                 Button("Choose Export Folder", action: chooseExportFolder)

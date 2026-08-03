@@ -12,5 +12,9 @@ struct HDRUtilityApp: App {
                 .frame(minWidth: 1100, minHeight: 720)
         }
         .windowResizability(.contentSize)
+
+        Settings {
+            ThirdPartyLicensesView()
+        }
     }
 }
