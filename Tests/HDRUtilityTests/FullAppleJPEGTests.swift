@@ -160,7 +160,6 @@ struct FullAppleJPEGTests {
             )
 
             #expect(verification.hasISOAuxiliary)
-            #expect(!verification.hasAppleLegacyAuxiliary)
             #expect(verification.gainMapChannels == (rgb ? 3 : 1))
             #expect(verification.contentHeadroom > 1)
 

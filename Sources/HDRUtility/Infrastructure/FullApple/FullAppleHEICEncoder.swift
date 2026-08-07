@@ -9,10 +9,9 @@ struct ISOHDRHEICVerification: Equatable, Sendable {
     let gainMapChannels: Int
     let contentHeadroom: Double
     let hasISOAuxiliary: Bool
-    let hasAppleLegacyAuxiliary: Bool
 }
 
-struct FullAppleHEICEncoder {
+final class FullAppleHEICEncoder {
     private let context = CIContext(options: [.cacheIntermediates: false])
 
     func encode(
@@ -26,14 +25,27 @@ struct FullAppleHEICEncoder {
         guard let hdrImage = loadHDRImage(from: hdrURL) else {
             throw FullAppleEncoderError.unableToLoad(hdrURL.lastPathComponent)
         }
-        let sourceHeadroom = max(Double(hdrImage.contentHeadroom), measuredHeadroom(hdrImage))
+        let sourceHeadroom = hdrImage.contentHeadroom > 1.000_1
+            ? Double(hdrImage.contentHeadroom)
+            : measuredHeadroom(hdrImage)
         guard sourceHeadroom > 1.000_1 else {
             throw FullAppleEncoderError.sourceIsNotHDR(hdrURL.lastPathComponent)
+        }
+        let signaledHDRImage: CIImage
+        if hdrImage.contentHeadroom > 1.000_1 {
+            signaledHDRImage = hdrImage
+        } else if #available(macOS 16.0, *) {
+            signaledHDRImage = hdrImage.settingContentHeadroom(Float(sourceHeadroom))
+        } else {
+            signaledHDRImage = hdrImage
         }
 
         let sdrImage: CIImage
         if let sdrURL {
-            guard let customSDR = CIImage(contentsOf: sdrURL) else {
+            guard let customSDR = CIImage(
+                contentsOf: sdrURL,
+                options: [.applyOrientationProperty: true]
+            ) else {
                 throw FullAppleEncoderError.unableToLoad(sdrURL.lastPathComponent)
             }
             guard CGRectIntegral(customSDR.extent).size == CGRectIntegral(hdrImage.extent).size else {
@@ -41,7 +53,7 @@ struct FullAppleHEICEncoder {
             }
             sdrImage = customSDR
         } else {
-            sdrImage = hdrImage.applyingFilter(
+            sdrImage = signaledHDRImage.applyingFilter(
                 "CIToneMapHeadroom",
                 parameters: [
                     "inputSourceHeadroom": sourceHeadroom,
@@ -50,9 +62,26 @@ struct FullAppleHEICEncoder {
             )
         }
 
-        let temporaryURL = FileManager.default.temporaryDirectory
-            .appending(path: "isohdr-\(UUID().uuidString)")
-            .appendingPathExtension("heic")
+        return try writeAdaptiveHDR(
+            sdrImage: sdrImage,
+            hdrImage: signaledHDRImage,
+            outputURL: outputURL,
+            quality: quality,
+            colorSpaceKind: colorSpaceKind,
+            rgbGainMap: rgbGainMap
+        )
+    }
+
+    private func writeAdaptiveHDR(
+        sdrImage: CIImage,
+        hdrImage: CIImage,
+        outputURL: URL,
+        quality: Double,
+        colorSpaceKind: ColorSpaceKind,
+        rgbGainMap: Bool
+    ) throws -> ISOHDRHEICVerification {
+        let temporaryURL = outputURL.deletingLastPathComponent()
+            .appending(path: ".isohdr-\(UUID().uuidString).tmp.heic")
         defer { try? FileManager.default.removeItem(at: temporaryURL) }
 
         let options: [CIImageRepresentationOption: Any] = [
@@ -72,30 +101,27 @@ struct FullAppleHEICEncoder {
             throw FullAppleEncoderError.appleEncodingFailed(error.localizedDescription)
         }
 
-        let verification = try verify(url: temporaryURL, expectedRGB: rgbGainMap)
-        try Data(contentsOf: temporaryURL).write(to: outputURL, options: .atomic)
+        let verification = try verify(
+            url: temporaryURL,
+            expectedRGB: rgbGainMap,
+            fallbackSize: hdrImage.extent.size
+        )
+        try FileManager.default.moveItem(at: temporaryURL, to: outputURL)
         return verification
     }
 
     private func loadHDRImage(from url: URL) -> CIImage? {
-        if url.pathExtension.lowercased() == "dng" {
-            guard let rawFilter = CIRAWFilter(imageURL: url) else { return nil }
-            rawFilter.boostAmount = 0
-            if rawFilter.isLocalToneMapSupported {
-                rawFilter.localToneMapAmount = 0
-            }
-            if #available(macOS 26.0, *), rawFilter.isHighlightRecoverySupported {
-                rawFilter.isHighlightRecoveryEnabled = true
-            }
-            return rawFilter.outputImage
-        }
         return CIImage(
             contentsOf: url,
             options: [.applyOrientationProperty: true, .expandToHDR: true]
         )
     }
 
-    private func verify(url: URL, expectedRGB: Bool) throws -> ISOHDRHEICVerification {
+    private func verify(
+        url: URL,
+        expectedRGB: Bool,
+        fallbackSize: CGSize
+    ) throws -> ISOHDRHEICVerification {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
             throw FullAppleEncoderError.verificationFailed("ImageIO could not reopen the HEIC output.")
         }
@@ -103,11 +129,6 @@ struct FullAppleHEICEncoder {
             source,
             0,
             kCGImageAuxiliaryDataTypeISOGainMap
-        )
-        let appleAuxiliary = CGImageSourceCopyAuxiliaryDataInfoAtIndex(
-            source,
-            0,
-            kCGImageAuxiliaryDataTypeHDRGainMap
         )
         guard let isoAuxiliary else {
             throw FullAppleEncoderError.verificationFailed("ImageIO did not recognize an ISO 21496-1 gain map in the HEIC output.")
@@ -121,24 +142,20 @@ struct FullAppleHEICEncoder {
             )
         }
 
-        guard let expanded = CIImage(contentsOf: url, options: [.expandToHDR: true]),
-              expanded.contentHeadroom > 1.000_1 else {
-            throw FullAppleEncoderError.verificationFailed("Core Image could not expand the HEIC gain map to HDR.")
-        }
         let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] ?? [:]
-        let width = properties[kCGImagePropertyPixelWidth] as? Int ?? Int(expanded.extent.width)
-        let height = properties[kCGImagePropertyPixelHeight] as? Int ?? Int(expanded.extent.height)
-
-        guard appleAuxiliary == nil else {
-            throw FullAppleEncoderError.verificationFailed("An Apple legacy auxiliary gain map was found in the HEIC output.")
+        let width = properties[kCGImagePropertyPixelWidth] as? Int ?? Int(fallbackSize.width)
+        let height = properties[kCGImagePropertyPixelHeight] as? Int ?? Int(fallbackSize.height)
+        guard let expandedImage = CIImage(contentsOf: url, options: [.expandToHDR: true]),
+              expandedImage.contentHeadroom > 1.000_1 else {
+            throw FullAppleEncoderError.verificationFailed("Core Image did not recognize the HEIC output as HDR.")
         }
+
         return ISOHDRHEICVerification(
             width: width,
             height: height,
             gainMapChannels: channels,
-            contentHeadroom: Double(expanded.contentHeadroom),
-            hasISOAuxiliary: true,
-            hasAppleLegacyAuxiliary: false
+            contentHeadroom: Double(expandedImage.contentHeadroom),
+            hasISOAuxiliary: true
         )
     }
 

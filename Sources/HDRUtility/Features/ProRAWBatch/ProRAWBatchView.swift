@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 struct ProRAWBatchView: View {
     @Environment(AppState.self) private var appState
     @State private var model = ProRAWBatchViewModel()
+    @State private var showsTechnicalDetails = false
 
     var body: some View {
         ScrollView {
@@ -17,11 +18,17 @@ struct ProRAWBatchView: View {
                     sourcesCard
                     settingsCard.frame(width: 420)
                 }
-                ConversionLogPanel(
-                    job: model.lastJob,
-                    emptyMessage: "Convert Apple ProRAW/DNG files to recent Apple Adaptive HDR HEIC."
-                )
-                .frame(minHeight: 240)
+                DisclosureGroup("Technical details", isExpanded: $showsTechnicalDetails) {
+                    ConversionLogPanel(
+                        job: model.lastJob,
+                        emptyMessage: "Convert Apple ProRAW/DNG files to Apple-compatible HEIC."
+                    )
+                    .frame(minHeight: 240)
+                    .padding(.top, 10)
+                }
+                .font(.headline)
+                .padding(18)
+                .utilityCardStyle()
             }
             .padding(24)
         }
@@ -31,7 +38,7 @@ struct ProRAWBatchView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("ProRAW → HEIC (Batch)").font(.largeTitle.bold())
-            Text("Batch-develop Apple ProRAW files and export compact HEIC images with an SDR base and an ISO 21496-1 Adaptive HDR gain map.")
+            Text("Convert Apple ProRAW files in parallel, preserving HDR gain maps when present and falling back cleanly to SDR when absent.")
                 .foregroundStyle(.secondary)
         }
     }
@@ -58,8 +65,15 @@ struct ProRAWBatchView: View {
                 ScrollView {
                     LazyVStack(spacing: 8) {
                         ForEach(model.request.sources, id: \.self) { url in
-                            Label(url.lastPathComponent, systemImage: "camera.raw")
-                                .lineLimit(1)
+                            HStack(spacing: 10) {
+                                statusIndicator(for: model.itemStates[url] ?? .pending)
+                                Text(url.lastPathComponent)
+                                    .lineLimit(1)
+                                Spacer()
+                                Text(statusLabel(for: model.itemStates[url] ?? .pending))
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(statusColor(for: model.itemStates[url] ?? .pending))
+                            }
                                 .padding(10)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
@@ -67,6 +81,19 @@ struct ProRAWBatchView: View {
                     }
                 }
                 .frame(maxHeight: 340)
+
+                HStack(spacing: 18) {
+                    Label("\(model.hdrCount) HDR", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    Label("\(model.sdrCount) SDR", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.yellow)
+                    Label("\(model.failedCount) failed", systemImage: "xmark.circle.fill")
+                        .foregroundStyle(.red)
+                    Spacer()
+                    Text("\(model.remainingCount) remaining")
+                        .foregroundStyle(.secondary)
+                }
+                .font(.caption.weight(.semibold))
             }
 
             Divider()
@@ -93,9 +120,18 @@ struct ProRAWBatchView: View {
     private var settingsCard: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Apple HEIC Settings").font(.headline)
-            Label("Adaptive HDR · ISO 21496-1", systemImage: "checkmark.seal.fill")
+            Label("Apple ImageIO", systemImage: "checkmark.seal.fill")
                 .foregroundStyle(.green)
-            Text("HEIF is the container family; HEIC is the usual filename extension when HEVC compression is used. This exporter writes .heic.")
+
+            LabeledContent("Output", value: "HEIC · Apple HDR or SDR")
+            Text("ImageIO preserves Apple's HDR gain map when present. ProRAW files without a gain map are exported automatically as SDR HEIC.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            LabeledContent("Gain map", value: "Preserved when present")
+
+            Toggle("Reduce 48 MP to Apple 24 MP", isOn: $model.request.resizeToApple24MP)
+            Text("Caps the long edge at 5712 px (5712×4284 for 4:3). ImageIO scales the SDR image and Apple gain map together; smaller photos are not enlarged.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -104,26 +140,68 @@ struct ProRAWBatchView: View {
             }
             LabeledContent("Compression quality", value: model.request.quality.formatted(.percent.precision(.fractionLength(0))))
 
-            Picker("Base color space", selection: $model.request.colorSpace) {
-                Text("Display P3 (recommended)").tag(ColorSpaceKind.displayP3)
-                Text("sRGB").tag(ColorSpaceKind.sRGB)
+            Picker("Parallel conversions", selection: $model.request.parallelConversions) {
+                ForEach(ProRAWBatchConversionRequest.parallelConversionChoices, id: \.self) { count in
+                    Text("\(count) files").tag(count)
+                }
             }
+            .pickerStyle(.menu)
 
-            Picker("Gain map", selection: $model.request.gainMapChannels) {
-                Text("Monochrome (compatible)").tag(ISOHDRGainMapChannels.monochrome)
-                Text("RGB (maximum fidelity)").tag(ISOHDRGainMapChannels.rgb)
-            }
+            Text("Higher values can improve large batches, but require more unified memory while ProRAW files are being developed.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             TextField("Filename suffix", text: $model.request.outputSuffix)
                 .textFieldStyle(.roundedBorder)
 
             Divider()
-            Text("Core Image develops each DNG using Apple's current RAW decoder, creates the SDR rendition, then stores the recoverable HDR difference as a gain map. Every output is reopened and rejected if ImageIO does not recognize its ISO gain map.")
+            Text("Each worker uses Apple's direct ImageIO path. No HDR reconstruction, manual headroom or custom tone mapping is applied; SDR is the automatic fallback.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .padding(18)
         .utilityCardStyle()
+    }
+
+    @ViewBuilder
+    private func statusIndicator(for state: ProRAWBatchItemState) -> some View {
+        switch state {
+        case .pending:
+            Image(systemName: "circle")
+                .foregroundStyle(.secondary)
+        case .processing:
+            ProgressView()
+                .controlSize(.small)
+                .frame(width: 16, height: 16)
+        case .hdr:
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+        case .sdr:
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.yellow)
+        case .failed:
+            Image(systemName: "xmark.circle.fill")
+                .foregroundStyle(.red)
+        }
+    }
+
+    private func statusLabel(for state: ProRAWBatchItemState) -> String {
+        switch state {
+        case .pending: "Pending"
+        case .processing: "Converting"
+        case .hdr: "HDR"
+        case .sdr: "SDR"
+        case .failed: "Failed"
+        }
+    }
+
+    private func statusColor(for state: ProRAWBatchItemState) -> Color {
+        switch state {
+        case .hdr: .green
+        case .sdr: .yellow
+        case .failed: .red
+        case .pending, .processing: .secondary
+        }
     }
 
     private func chooseSources() -> [URL] {

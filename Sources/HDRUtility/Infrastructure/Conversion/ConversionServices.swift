@@ -74,12 +74,27 @@ struct FullAppleConversionRequest: Hashable {
 }
 
 struct ProRAWBatchConversionRequest: Hashable {
+    static let parallelConversionChoices = Array(stride(from: 2, through: 20, by: 2))
+
     var sources: [URL] = []
     var outputFolder: URL?
-    var quality = 0.95
-    var colorSpace: ColorSpaceKind = .displayP3
-    var gainMapChannels: ISOHDRGainMapChannels = .monochrome
-    var outputSuffix = "adaptive-hdr"
+    var quality = 0.90
+    var resizeToApple24MP = false
+    var outputSuffix = "apple-hdr"
+    var parallelConversions = 10
+}
+
+enum ProRAWBatchItemState: String, Hashable, Sendable {
+    case pending
+    case processing
+    case hdr
+    case sdr
+    case failed
+}
+
+struct ProRAWBatchProgressUpdate: Sendable {
+    let source: URL
+    let state: ProRAWBatchItemState
 }
 
 enum ISOHDROutputFormat: String, CaseIterable, Identifiable {

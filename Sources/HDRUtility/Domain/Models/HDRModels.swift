@@ -58,7 +58,7 @@ enum ImageContainer: String, CaseIterable, Hashable {
     case unknown
 }
 
-enum ColorSpaceKind: String, Hashable {
+enum ColorSpaceKind: String, Hashable, Sendable {
     case sRGB
     case displayP3
     case rec2020
